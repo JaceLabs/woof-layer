@@ -4,7 +4,6 @@ FROM ubuntu:22.04
 
 # 设置环境变量
 ENV DEBIAN_FRONTEND=noninteractive
-ENV GETH_VERSION=1.14.0
 ENV PORT=8545
 
 # 安装必要的系统依赖
@@ -15,11 +14,17 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# 下载并安装 Geth
-RUN cd /tmp && \
-    wget -q https://gethstore.blob.core.windows.net/builds/geth-linux-amd64-1.14.0-61c72015.tar.gz && \
-    tar -xzf geth-linux-amd64-1.14.0-61c72015.tar.gz && \
-    mv geth-linux-amd64-1.14.0-61c72015/geth /usr/local/bin/ && \
+# 下载并安装 Geth - 使用多个备用源
+RUN set -ex && \
+    cd /tmp && \
+    # 尝试从 GitHub releases 下载（更稳定）
+    wget -q -O geth.tar.gz https://github.com/ethereum/go-ethereum/releases/download/v1.13.14/geth-linux-amd64-1.13.14-2bd6bd01.tar.gz || \
+    # 如果 GitHub 失败，尝试官方源
+    wget -q -O geth.tar.gz https://gethstore.blob.core.windows.net/builds/geth-linux-amd64-1.13.14-2bd6bd01.tar.gz || \
+    # 如果都失败，使用 curl 重试
+    (curl -L -o geth.tar.gz https://github.com/ethereum/go-ethereum/releases/download/v1.13.14/geth-linux-amd64-1.13.14-2bd6bd01.tar.gz && true) && \
+    tar -xzf geth.tar.gz && \
+    mv geth-linux-amd64-1.13.14-2bd6bd01/geth /usr/local/bin/ && \
     rm -rf geth-* && \
     geth version
 
