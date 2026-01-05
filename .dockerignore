@@ -1,0 +1,13 @@
+.git
+.gitignore
+.github
+README.md
+RAILWAY_DEPLOYMENT.md
+RAILWAY_QUICK_DEPLOY.md
+RAILWAY_REDEPLOY_FIX.md
+node_modules
+dist
+*.log
+.DS_Store
+.env
+.env.local

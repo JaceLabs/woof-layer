@@ -1,58 +1,67 @@
 # Woof Layer 区块链节点 - Railway 部署版本
-# 使用 Ubuntu 22.04 作为基础镜像
+# 使用官方 Ubuntu 镜像
 FROM ubuntu:22.04
 
 # 设置环境变量
-ENV DEBIAN_FRONTEND=noninteractive
-ENV PORT=8545
+ENV DEBIAN_FRONTEND=noninteractive \
+    PATH="/usr/local/bin:$PATH" \
+    GETH_DATA_DIR="/data"
 
-# 安装必要的系统依赖
+# 安装系统依赖
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
     git \
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-# 下载并安装 Geth - 使用多个备用源
-RUN set -ex && \
-    cd /tmp && \
-    # 尝试从 GitHub releases 下载（更稳定）
-    wget -q -O geth.tar.gz https://github.com/ethereum/go-ethereum/releases/download/v1.13.14/geth-linux-amd64-1.13.14-2bd6bd01.tar.gz || \
-    # 如果 GitHub 失败，尝试官方源
-    wget -q -O geth.tar.gz https://gethstore.blob.core.windows.net/builds/geth-linux-amd64-1.13.14-2bd6bd01.tar.gz || \
-    # 如果都失败，使用 curl 重试
-    (curl -L -o geth.tar.gz https://github.com/ethereum/go-ethereum/releases/download/v1.13.14/geth-linux-amd64-1.13.14-2bd6bd01.tar.gz && true) && \
-    tar -xzf geth.tar.gz && \
-    mv geth-linux-amd64-1.13.14-2bd6bd01/geth /usr/local/bin/ && \
-    rm -rf geth-* && \
-    geth version
+    --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
 
 # 创建工作目录
-WORKDIR /woof-layer
+WORKDIR /app
 
-# 复制 genesis.json
-COPY genesis.json /woof-layer/
+# 复制 genesis.json（重要：必须在这里复制）
+COPY genesis.json /app/genesis.json
+
+# 下载并安装 Geth
+RUN set -ex && \
+    echo "Downloading Geth..." && \
+    # 尝试从 GitHub releases 下载
+    wget -q -O /tmp/geth.tar.gz \
+      https://github.com/ethereum/go-ethereum/releases/download/v1.13.14/geth-linux-amd64-1.13.14-2bd6bd01.tar.gz && \
+    echo "Extracting Geth..." && \
+    tar -xzf /tmp/geth.tar.gz -C /tmp && \
+    mv /tmp/geth-linux-amd64-1.13.14-2bd6bd01/geth /usr/local/bin/ && \
+    rm -rf /tmp/geth* && \
+    echo "Verifying Geth installation..." && \
+    geth version
 
 # 创建数据目录
-RUN mkdir -p /woof-layer/data
+RUN mkdir -p ${GETH_DATA_DIR}
 
 # 初始化创世块
-RUN geth --datadir /woof-layer/data init /woof-layer/genesis.json
+RUN echo "Initializing genesis block..." && \
+    geth --datadir ${GETH_DATA_DIR} init /app/genesis.json && \
+    echo "Genesis block initialized successfully"
 
 # 暴露 RPC 端口
 EXPOSE 8545
 
-# 启动 Geth 节点
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8545 -X POST -H "Content-Type: application/json" \
+    --data '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' || exit 1
+
+# 启动脚本
 CMD ["geth", \
-     "--datadir", "/woof-layer/data", \
+     "--datadir", "/data", \
      "--http", \
      "--http.addr", "0.0.0.0", \
      "--http.port", "8545", \
-     "--http.api", "eth,net,web3,personal", \
+     "--http.api", "eth,net,web3,personal,admin", \
      "--http.vhosts", "*", \
      "--http.corsdomain", "*", \
      "--networkid", "88188", \
      "--verbosity", "3", \
      "--mine", \
-     "--miner.threads", "1"]
+     "--miner.threads", "1", \
+     "--allow-insecure-unlock"]

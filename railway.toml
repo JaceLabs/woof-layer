@@ -1,0 +1,13 @@
+[build]
+builder = "dockerfile"
+dockerfile = "Dockerfile"
+
+[deploy]
+numReplicas = 1
+restartPolicyType = "always"
+restartPolicyMaxRetries = 10
+
+[[services]]
+name = "woof-layer-rpc"
+buildCommand = ""
+startCommand = ""
